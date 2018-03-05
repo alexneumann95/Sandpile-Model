@@ -7,7 +7,7 @@ from time import gmtime, strftime
 # PARAMETERS
 
 expNo = input("Experiment Number: ")
-timeStamp = time.strftime("%H%M%S", gmtime())
+timeStamp = time.strftime("%j(%H%-M%-S)", gmtime())
 dataFile = "Results/Experiment-%s.dat"%expNo
 title_ = dataFile[8:-4]
 numRows = 0
@@ -79,6 +79,9 @@ def PlotinfectedRecord() :
 	ax = plt.subplot(111)
 	ax.set_yscale('log')
 	ax.set_xscale('log')
+	ax.set_title('Frequency of Epidemic vs Size of Epidemic')
+	ax.set_xlabel('Size')
+	ax.set_ylabel('Frequency')
 
 	sizes = list()
 	frequency = list()
@@ -87,7 +90,7 @@ def PlotinfectedRecord() :
 	for key, value in sorted(infectedRecord.items()) :
 		sizes.append(key)
 		frequency.append(value)
-		if (key <= 300) :
+		if (key <= 0.075*len(infectedRecord))  :
 			linearSizes.append(key)
 			linearFrequency.append(value)
 
@@ -104,6 +107,9 @@ def PlotinfectedRecord() :
 def PlotTimeRecord() :
 	fig = plt.figure(figsize = (9,9))
 	ax = plt.subplot(111)
+	ax.set_title('Number of infected vs Time Step')
+	ax.set_xlabel('Time Step')
+	ax.set_ylabel('Number')
 
 	timesteps = list()
 	sizes = list()
@@ -121,6 +127,88 @@ def PlotTimeRecord() :
 	ax.plot(timesteps, sizes)
 
 	plt.draw()
+	return 0
+	
+def PlotTimeDepend() :
+	fig = plt.figure(figsize = (9,9))
+	ax = plt.subplot(111)
+
+	timesteps = list()
+	sizes = list()
+	lastKeyValue = 0
+	maxActiveinfectedSize = 0
+	currentEpidemicSize = 0
+
+	for key, value in (timeRecord.items()) :
+		if value == 0 :
+			if (currentEpidemicSize != 0) :
+				timesteps.append(key - 1)
+				sizes.append(currentEpidemicSize)
+				currentEpidemicSize = 0
+			if (currentEpidemicSize > maxActiveinfectedSize) : 
+				maxActiveinfectedSize = currentEpidemicSize	
+		if value > 0:
+			currentEpidemicSize += value
+
+	dataLength  = len(sizes)
+	timeSize = sizes[1:dataLength]
+	PreviousTimeSize = sizes[0:dataLength-1]
+	ax.scatter(timeSize, PreviousTimeSize)
+	ax.set_title("Time Dependence")
+	ax.set_ylabel("Previous Infection Size")
+	ax.set_xlabel("Infection Size")
+	
+	#correlation coefficient
+	C = np.corrcoef(timeSize, PreviousTimeSize)[1,0]
+	print(C)
+	ax.text(0, 0.98*np.max(PreviousTimeSize), "Correlation = %1.7f"%C)
+	
+	
+	plt.draw()
+	
+	return 0
+
+#GAP SIZE
+def downTime():
+	fig = plt.figure(figsize = (9,9))
+	ax = plt.subplot(111)
+
+	downTimes = list()
+	sizes = list()
+	maxActiveinfectedSize = 0
+	downTimeLength = 0
+	currentEpidemicSize = 0
+	
+	for key, value in (timeRecord.items()) :
+		if value == 0:
+			downTimeLength += 1
+			if (currentEpidemicSize != 0) :
+				sizes.append(currentEpidemicSize)
+				currentEpidemicSize = 0
+		elif value > 0:
+			if (downTimeLength != 0) :
+				downTimes.append(downTimeLength)
+				downTimeLength = 0
+			currentEpidemicSize += value
+			if (currentEpidemicSize > maxActiveinfectedSize) : 
+				maxActiveinfectedSize = currentEpidemicSize
+
+	if (len(downTimes) != len(sizes)) :
+		if (downTimeLength != 0) :
+			downTimes.append(downTimeLength)
+	
+	ax.scatter(downTimes, sizes)
+	
+	ax.set_ylabel("Size")
+	ax.set_xlabel("Down Time")
+	
+	#correlation coefficient
+	C = np.corrcoef(downTimes, sizes)[1,0]
+	print(C)
+	ax.set_title("Down Times Vs Size of Infection - Correlation = %1.4f"%C)
+	
+	plt.draw()
+	
 	return 0
 
 def save_all():
@@ -145,7 +233,7 @@ def save_all():
 	for key, value in sorted(infectedRecord.items()) :
 		sizes.append(key)
 		frequency.append(value)
-		if (key <= 300) :
+		if (key <= 0.075*len(infectedRecord)) :
 			linearSizes.append(key)
 			linearFrequency.append(value)
 
@@ -156,7 +244,7 @@ def save_all():
 	ax2.plot(sizes, yfit, 'red')
 
 	#Matrix
-	cmap = colors.ListedColormap(['white', 'darkgreen', 'red'])
+	cmap = colors.ListedColormap(['white', 'springgreen', 'red'])
 	bounds=[-0.5,0.5,1.5,2.5]
 	norm = colors.BoundaryNorm(bounds, cmap.N)
 	plot = ax4.imshow(matrix, cmap=cmap, norm=norm, interpolation='none', vmax=2, vmin = 0)
@@ -183,7 +271,7 @@ def save_all():
 
 	ax3.set_xlim(-100, lastKeyValue+100)
 	ax3.set_ylim(0, maxActiveinfectedSize+10)
-	ax3.plot(timesteps, sizes)
+	ax3.scatter(timesteps, sizes)
 	
 	#largest time structure
 	sizes = np.asarray(sizes)
@@ -194,7 +282,7 @@ def save_all():
 	lgTime = timesteps[Largest10loc[0]]
 	lgSize = sizes[Largest10loc[0]]
 	ax3.scatter(lgTime,lgSize, color = 'r')
-
+	
 	#Info panel
 	ax1.axis('off')
 	ax1.set_xlim(0,10)
@@ -209,6 +297,39 @@ def save_all():
 	#save file
 	fig.savefig('Results/%s-%s.pdf'%(title_,timeStamp))
 	plt.close(fig)
+	
+
+	
+	#time Dependance
+	fig = plt.figure(figsize = (20,20))
+	ax = plt.subplot(111)
+	timesteps = list()
+	sizes = list()
+	lastKeyValue = 0
+	maxActiveinfectedSize = 0
+	
+	for key, value in (timeRecord.items()) :
+		if value > 0:
+			timesteps.append(key)
+			sizes.append(value)
+			lastKeyValue = key
+			if (value > maxActiveinfectedSize) : 
+				maxActiveinfectedSize = value
+	dataLength  = len(sizes)
+	timeSize = sizes[1:dataLength]
+	PreviousTimeSize = sizes[0:dataLength-1]
+	ax.scatter(timeSize, PreviousTimeSize)
+	ax.set_title("Time Dependence")
+	ax.set_ylabel("Previous Infection Size")
+	ax.set_xlabel("Infection Size")
+	
+	#correlation coefficient
+	C = np.corrcoef(timeSize, PreviousTimeSize)[1,0]
+	ax.text(0, 0.99*np.max(PreviousTimeSize), "Correlation = %1.4f"%C)
+
+	fig.savefig('Results/%s-%s-TIME.pdf'%(title_,timeStamp))
+	plt.close(fig)	
+	
 	return 0;
 
 
@@ -217,6 +338,8 @@ plt.ion()
 PlotinfectedForest()
 PlotinfectedRecord()
 PlotTimeRecord()
+PlotTimeDepend()
+downTime()
 plt.show()
-save_all()
+#save_all()
 

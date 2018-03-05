@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import time
+from time import gmtime, strftime
 import random
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -10,7 +11,8 @@ from matplotlib import colors
 numRows = 100
 numCols = 100
 maxIterations = 1000000
-fileName = "Results/Experiment-#.dat"
+preRunTime = 500000
+fileName = "Results/Experiment-BASE.dat"
 neighbourhood = ((-1,0), (1, 0), (0, 1), (0, -1))
 EMPTY, HEALTHY, INFECTED = 0, 1, 2
 H = 0.05  #healthy from space
@@ -23,11 +25,19 @@ infectedRecord = dict() # key: size, value: frequency
 timeRecord = dict() # key: timestep, value: number of active infecteds
 
 # FUNCTIONS
+
+def showTime():
+	print(time.strftime("%H:%M:%S", gmtime()))
+	return 0;
+	
+	
 def CreateMatrix() :
 	matrix = np.zeros([numRows, numCols], dtype=int)
 	for row in range(0, numRows - 1) :
 		for col in range(0, numCols - 1) :
-			matrix[row, col] = np.random.choice((EMPTY, HEALTHY, INFECTED), p = [1-(H+I), H, I])	
+			decision = np.random.choice((EMPTY, HEALTHY, INFECTED), p = [1-(H+I), H, I])
+			if (decision == EMPTY or decision == HEALTHY):
+				matrix[row, col] = decison
 			
 	return matrix
 	
@@ -126,18 +136,18 @@ def UpdateMatrix(matrix) :
 	decision = np.random.choice((EMPTY, HEALTHY, INFECTED), p = [1-(H+I), H, I])
 
 	if decision == HEALTHY :
-		emptySpace = np.where(matrix == EMPTY)
-		rRow = random.randint(0, len(emptySpace[0]) - 1)
-		rCol = random.randint(0, len(emptySpace[0]) - 1)
-		matrix[emptySpace[0][rRow], emptySpace[1][rCol]] = HEALTHY	
+		emptySpaces = np.where(matrix == EMPTY)
+		if (len(emptySpaces[0]) != 0):
+			x = random.randint(0, len(emptySpaces[0]) - 1)
+			matrix[emptySpaces[0][x], emptySpaces[1][x]] = HEALTHY	
 		
 	decision = np.random.choice((EMPTY, HEALTHY, INFECTED), p = [1-(H+I), H, I])
 
-	if decision == INFECTED and np.max(matrix) < 2:
+	if decision == INFECTED and np.max(matrix) < INFECTED:
 		emptySpaces = np.where(matrix == EMPTY)
-		rRow = random.randint(0, len(emptySpaces[0]) - 1)
-		rCol = random.randint(0, len(emptySpaces[0]) - 1)
-		matrix[emptySpaces[0][rRow], emptySpaces[1][rCol]] = INFECTED	
+		if (len(emptySpaces[0]) != 0):
+			x = random.randint(0, len(emptySpaces[0]) - 1)
+			matrix[emptySpaces[0][x], emptySpaces[1][x]] = INFECTED	
 	
 	return 0
 		
@@ -167,21 +177,38 @@ def OutputToFile(matrix, infectedRecord, timeRecord) :
 	
 
 # SIMULATION
+showTime()
 timeStep = 0
 currentInfectedSize = 0
 
 matrix = CreateMatrix()
 
+# RUN FIRST TO SETTLE.
+while timeStep < preRunTime :
+	timeStep += 1
+	currentInfectedSize += HandleInfected(matrix)
+	UpdateMatrix(matrix)
+	
+	if (timeStep % 50000 == 0) :
+		print ("initializing %d %% " %((timeStep*100 // preRunTime)))
+
+#set everything back to 0
+timeStep = 0
+currentInfectedSize = 0
+showTime()
+
 while timeStep < maxIterations :
 	timeStep += 1
 	currentInfectedSize += HandleInfected(matrix)
-	if (np.max(matrix) < 2) :
+	if (np.max(matrix) < INFECTED) :
 		RecordInfectedSize(infectedRecord, currentInfectedSize)
 		currentInfectedSize = 0
-	RecordTimeStep(timeRecord, timeStep, len(np.where(matrix == 2)[0]))
+
+	RecordTimeStep(timeRecord, timeStep, currentInfectedSize)
 	UpdateMatrix(matrix)
 	
-	if (timeStep % 10000 == 0) :
-		print ("Time Step: %d" % timeStep)
+	if (timeStep % (maxIterations // 10) == 0) :
+		print ("WORKING ON IT... %d %% " %((timeStep*100 // maxIterations)))
 
+showTime()
 OutputToFile(matrix, infectedRecord, timeRecord)
